@@ -161,3 +161,26 @@ select.result-pick { padding: 5px 8px; font-size: .9rem; }
   .call-panel .timer { font-size: 1.5rem; }
   .call-panel .quick .btn { padding: 10px 12px; font-size: .95rem; }
 }
+
+/* ---- Analytics ---- */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.card h2 small { font-weight: 400; color: var(--muted); font-size: .85rem; }
+.funnel-row { display: grid; grid-template-columns: 90px 1fr 110px; gap: 12px; align-items: center; margin: 8px 0; }
+.funnel-row .track { background: var(--panel-2); border-radius: 4px; height: 26px; }
+.funnel-row .fill { background: var(--accent); height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.funnel-row .n { font-weight: 700; font-variant-numeric: tabular-nums; }
+.funnel-row .rate { color: var(--muted); font-size: .9rem; text-align: right; }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 170px; padding-top: 10px; border-bottom: 1px solid var(--line); }
+.bars .col { flex: 1; min-width: 18px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.bars .bar { width: 100%; max-width: 34px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; }
+.bars .bar.thin { background: transparent; border: 1px dashed var(--accent); border-bottom: 0; opacity: .7; }
+.bars .val { font-size: .75rem; color: var(--muted); margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+.bar-labels { display: flex; gap: 4px; }
+.bar-labels div { flex: 1; min-width: 18px; text-align: center; font-size: .75rem; color: var(--muted); padding-top: 4px; }
+.thin-tag { font-size: .72rem; color: var(--warn); border: 1px solid #8a6a1e; border-radius: 5px; padding: 0 5px; margin-left: 4px; }
+.tip { position: fixed; z-index: 500; pointer-events: none; background: #0b0e14; border: 1px solid var(--line);
+       border-radius: 8px; padding: 8px 10px; font-size: .85rem; box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+.range { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 18px; }
+.range .btn.active { border-color: var(--accent); color: var(--accent); }
+.bars-scroll { overflow-x: auto; }
+.bars-scroll > div { min-width: 420px; }

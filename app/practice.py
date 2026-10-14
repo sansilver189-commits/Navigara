@@ -76,17 +76,61 @@ def make_rows(n=70, seed=42):
 def seed(conn):
     from .leads import import_facts
     import_facts(conn, make_rows(), "Practice leads (made up)", kind="practice")
-    # A few past results so the Leads page has something to show.
-    rng = random.Random(7)
-    now = datetime.now(timezone.utc)
-    ids = [r[0] for r in conn.execute("SELECT id FROM leads WHERE status = 'ready'").fetchall()]
-    for lead_id in rng.sample(ids, min(12, len(ids))):
-        when = now - timedelta(days=rng.randint(1, 10), hours=rng.randint(0, 8))
-        conn.execute(
-            "INSERT INTO call_events(lead_id, result, source, created_at) VALUES(?, ?, 'dialer', ?)",
-            (lead_id, rng.choice(["no_answer", "no_answer", "not_interested", "booked", "call_later"]),
-             when.isoformat(timespec="seconds")),
-        )
+    _seed_history(conn)
+
+
+def _seed_history(conn):
+    """A month of made-up past calls on extra made-up leads, so Analytics has something to show."""
+    from .dialer import PRACTICE_NUMBERS
+    from .leads import import_facts
+    from .util import local_tz
+
+    rows = make_rows(n=160, seed=99)
+    for r in rows:
+        r["source_id"] = "history-" + r["source_id"]
+        r["email"] = "h." + r["email"]
+        r["contact_name"] = r["contact_name"] + " Jr"
+    import_facts(conn, rows, "Practice call history (made up)", kind="practice")
+    ids = [r[0] for r in conn.execute(
+        "SELECT l.id FROM leads l JOIN batches b ON b.id = l.batch_id "
+        "WHERE b.name LIKE 'Practice call history%' AND l.status = 'ready'")]
+    rng = random.Random(3)
+    tz = local_tz()
+    now = datetime.now(tz) - timedelta(days=1)
+    today = datetime.now(tz).date()
+    for lead_id in ids:
+        for attempt in range(2):  # a miss gets its second try, so history leads are finished
+            day = today - timedelta(days=rng.randint(1, 30))
+            while day.weekday() >= 5:  # weekdays only
+                day = today - timedelta(days=rng.randint(1, 30))
+            hour = rng.choice([8, 9, 9, 10, 10, 11, 13, 14, 14, 15, 16, 16])
+            when = datetime(day.year, day.month, day.day, hour, rng.randint(0, 59), tzinfo=tz)
+            number = rng.choice(PRACTICE_NUMBERS)
+            # Mornings and late afternoons answer more; the 404 number "stops working" this week.
+            p_answer = 0.45 if hour in (9, 10, 16) else 0.25
+            if number.startswith("+1404") and (today - day).days <= 7:
+                p_answer = 0.05
+            if rng.random() < p_answer:
+                result = rng.choice(["not_interested", "not_interested", "gatekeeper", "call_later",
+                                     "send_info", "booked"])
+            else:
+                result = rng.choice(["no_answer", "no_answer", "left_voicemail"])
+            conn.execute(
+                "INSERT INTO call_events(lead_id, result, source, from_number, duration_sec, created_at) "
+                "VALUES(?, ?, 'dialer', ?, ?, ?)",
+                (lead_id, result, number, rng.randint(5, 240),
+                 when.astimezone(timezone.utc).isoformat(timespec="seconds")),
+            )
+            if result == "booked":
+                if rng.random() < 0.7:
+                    conn.execute("INSERT INTO call_events(lead_id, result, source, created_at) VALUES(?, 'showed', 'manual', ?)",
+                                 (lead_id, min(when + timedelta(days=3), now).astimezone(timezone.utc).isoformat(timespec="seconds")))
+                    if rng.random() < 0.4:
+                        conn.execute("INSERT INTO call_events(lead_id, result, source, created_at) VALUES(?, 'signed', 'manual', ?)",
+                                     (lead_id, min(when + timedelta(days=10), now).astimezone(timezone.utc).isoformat(timespec="seconds")))
+                break
+            if result not in ("no_answer", "left_voicemail", "gatekeeper"):
+                break
     conn.commit()
 
 

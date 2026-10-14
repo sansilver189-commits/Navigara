@@ -92,7 +92,8 @@ function renderRows() {
     .map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(v)}</option>`).join("");
   $("rows").innerHTML = rows.map((r, i) => {
     const isCurrent = current && current.row.id === r.id;
-    const label = r.kind === "retry" ? '<span class="kind retry">2nd try</span>' : "";
+    const label = r.kind === "retry" ? '<span class="kind retry">2nd try</span>'
+                : r.kind === "callback" ? '<span class="kind retry">call back</span>' : "";
     return `<tr data-id="${r.id}" class="${isCurrent ? "current" : ""} ${r.today_result ? "done" : ""}">
       <td class="sub">${i + 1}</td>
       <td><b>${esc(r.contact || "-")}</b> ${label}<div class="sub">${esc(r.title || "")}</div></td>

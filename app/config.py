@@ -30,6 +30,9 @@ def secret_key() -> bytes:
         path.write_text(secrets.token_hex(32))
     return path.read_text().strip().encode()
 
+# A lead marked "Call Later" comes back on the Dialer this many days later.
+CALL_LATER_DAYS = max(1, int(os.environ.get("CALL_LATER_DAYS", "3")))
+
 # ---- Twilio (calling). All must be set, or the Dialer works as a plain list. ----
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "").strip()
 TWILIO_API_KEY = os.environ.get("TWILIO_API_KEY", "").strip()

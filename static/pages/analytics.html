@@ -4,16 +4,129 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Analytics - Navigara</title>
-<link rel="stylesheet" href="/static/css/style.css?v=6">
+<link rel="stylesheet" href="/static/css/style.css?v=7">
 <script src="/static/js/app.js?v=5"></script>
 </head>
 <body>
 <div class="layout">
   <aside id="sidebar"></aside>
   <main>
-    <div class="page-head"><h1>Analytics</h1><div class="muted">Is the calling working?</div></div>
-    <div class="placeholder muted">This page is built in section 5. Coming soon.</div>
+    <div class="page-head"><h1>Analytics</h1>
+      <div class="muted">Is the calling working? Counts calls made from the Dialer only.
+        <span class="thin-tag">thin</span> = fewer than <span id="thinN">20</span> calls, too few to trust yet.</div></div>
+
+    <div class="range">
+      <button class="btn" data-days="1">Today</button>
+      <button class="btn" data-days="7">7 days</button>
+      <button class="btn" data-days="30">30 days</button>
+      <button class="btn" data-days="90">90 days</button>
+      <input type="date" id="start"> <span class="muted">to</span> <input type="date" id="end">
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h2>Funnel <small>each step as a % of the step before</small></h2>
+      <div id="funnel"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h2>Answer rate by hour <small>your time zone; bar = % answered, small number = calls</small></h2>
+        <div class="bars-scroll"><div><div class="bars" id="hours"></div><div class="bar-labels" id="hoursL"></div></div></div></div>
+      <div class="card"><h2>Answer rate by day <small>bar = % answered, small number = calls</small></h2>
+        <div class="bars" id="days"></div><div class="bar-labels" id="daysL"></div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h2>By industry <small>per company called, not per dial</small></h2>
+      <div class="table-wrap"><table><thead><tr><th>Industry</th><th>Called</th><th>Reached</th><th>Booked</th></tr></thead>
+        <tbody id="industry"></tbody></table></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h2>By phone number <small>a number whose last-7-days answer rate drops may be flagged as spam</small></h2>
+      <div class="table-wrap"><table><thead><tr><th>Number</th><th>Dials</th><th>Answer rate</th><th>Booked</th><th>Last 7 days</th></tr></thead>
+        <tbody id="numbers"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>By script</h2>
+      <div id="scripts"></div>
+    </div>
   </main>
 </div>
+<div class="tip" id="tip" hidden></div>
+<script>
+const $ = id => document.getElementById(id);
+const pct = (v, thin) => v == null ? "-" : `${v}%${thin ? '<span class="thin-tag">thin</span>' : ""}`;
+const iso = d => d.toLocaleDateString("en-CA");  // YYYY-MM-DD in your time zone
+
+function setRange(days) {
+  const end = new Date(), start = new Date();
+  start.setDate(end.getDate() - (days - 1));
+  $("start").value = iso(start); $("end").value = iso(end);
+  document.querySelectorAll("[data-days]").forEach(b => b.classList.toggle("active", +b.dataset.days === days));
+  load();
+}
+
+function hourName(h) { return h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h - 12) + "p"; }
+
+function bars(el, labelsEl, items, name) {
+  // Bars are scaled to the best rate shown, and each carries its own % label.
+  const top = Math.max(10, ...items.map(b => b.rate || 0));
+  $(el).innerHTML = items.map(b => `
+    <div class="col" data-tip="<b>${name(b.label)}</b><br>${b.dials} calls, ${b.answered} answered<br>Answer rate: ${b.rate ?? "-"}%${b.thin ? "<br><i>Too few calls to trust</i>" : ""}">
+      <div class="val">${b.dials ? b.rate + "%" : ""}</div>
+      <div class="bar ${b.thin ? "thin" : ""}" style="height:${b.dials ? Math.max(2, 85 * b.rate / top) : 0}%"></div>
+    </div>`).join("");
+  $(labelsEl).innerHTML = items.map(b => `<div>${name(b.label, true)}<br><span style="opacity:.7">${b.dials || ""}</span></div>`).join("");
+}
+
+async function load() {
+  const a = await api(`/api/analytics?start=${$("start").value}&end=${$("end").value}`);
+  $("thinN").textContent = a.thin_below;
+  const max = a.funnel[0].n || 1;
+  $("funnel").innerHTML = a.funnel.map(f => `
+    <div class="funnel-row">
+      <div>${f.label}</div>
+      <div class="track"><div class="fill" style="width:${100 * f.n / max}%"></div></div>
+      <div><span class="n">${f.n}</span> <span class="rate">${f.rate == null ? "" : pct(f.rate, f.thin)}</span></div>
+    </div>`).join("");
+
+  // Hours: show business hours, widened to include any hour you actually called.
+  const used = a.hours.filter(h => h.dials).map(h => h.label);
+  const lo = Math.min(8, ...used), hi = Math.max(18, ...used);
+  bars("hours", "hoursL", a.hours.slice(lo, hi + 1), (h, short) => short ? hourName(h) : `${hourName(h)}m`);
+  bars("days", "daysL", a.days, d => d);
+
+  $("industry").innerHTML = a.by_industry.length ? a.by_industry.map(r => `
+    <tr><td>${esc(r.label)}</td><td>${r.called}</td><td>${r.reached} &middot; ${pct(r.reach_rate, r.thin)}</td>
+        <td>${r.booked} &middot; ${pct(r.book_rate, r.thin)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="muted">No calls in this date range.</td></tr>`;
+
+  $("numbers").innerHTML = a.by_number.length ? a.by_number.map(r => `
+    <tr><td>${esc(r.label)}</td><td>${r.dials}</td><td>${pct(r.rate, r.thin)}</td><td>${r.booked}</td>
+        <td>${r.week_dials} calls &middot; ${pct(r.week_rate, r.week_thin)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">No calls in this date range.</td></tr>`;
+
+  $("scripts").innerHTML = a.by_script.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Script</th><th>Dials</th><th>Answer rate</th><th>Booked</th><th>Booking rate</th></tr></thead><tbody>
+      ${a.by_script.map(r => `<tr><td>${esc(r.label)}</td><td>${r.dials}</td><td>${pct(r.rate, r.thin)}</td>
+        <td>${r.booked}</td><td>${pct(r.book_rate, r.thin)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">Shows up once two different scripts have been used on calls.</p>`;
+}
+
+// Hover details
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest("[data-tip]"), tip = $("tip");
+  if (!t) { tip.hidden = true; return; }
+  tip.innerHTML = t.dataset.tip; tip.hidden = false;
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px";
+});
+document.querySelectorAll("[data-days]").forEach(b => b.onclick = () => setRange(+b.dataset.days));
+["start", "end"].forEach(id => $(id).onchange = () => {
+  document.querySelectorAll("[data-days]").forEach(b => b.classList.remove("active")); load();
+});
+document.addEventListener("DOMContentLoaded", () => setRange(30));
+</script>
 </body>
 </html>

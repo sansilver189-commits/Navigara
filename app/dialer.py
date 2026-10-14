@@ -59,12 +59,15 @@ def _list(conn, start):
                (SELECT COUNT(*) FROM ev WHERE ev.lead_id = l.id) AS n_events,
                (SELECT COUNT(*) FROM ev WHERE ev.lead_id = l.id
                     AND ev.result NOT IN ({",".join("?" * len(RETRY_ONCE))})) AS n_final,
-               (SELECT MIN(created_at) FROM ev WHERE ev.lead_id = l.id AND ev.created_at >= ?) AS first_today,
-               (SELECT MAX(created_at) FROM ev WHERE ev.lead_id = l.id) AS last_call
+               (SELECT MIN(created_at) FROM ev WHERE ev.lead_id = l.id AND ev.source = 'dialer'
+                    AND ev.created_at >= ?) AS first_today,
+               (SELECT MAX(created_at) FROM ev WHERE ev.lead_id = l.id) AS last_call,
+               (SELECT result FROM ev WHERE ev.lead_id = l.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_result
         FROM leads l LEFT JOIN batches b ON b.id = l.batch_id
         WHERE b.deleted_at IS NULL AND l.status = 'ready' AND l.phone IS NOT NULL
     """, (*RETRY_ONCE, start)).fetchall()
 
+    callback_before = (datetime.fromisoformat(start) - timedelta(days=config.CALL_LATER_DAYS - 1)).isoformat()
     new, retry, done = [], [], []
     for r in rows:
         item = {"id": r["id"], "company": r["name"], "contact": r["contact_name"], "title": r["title"],
@@ -72,7 +75,8 @@ def _list(conn, start):
                 "pitch": r["pitch"], "today_result": None, "event_id": None}
         if r["first_today"]:
             last = conn.execute(
-                "SELECT id, result FROM call_events WHERE lead_id = ? AND ignored = 0 AND created_at >= ? "
+                "SELECT id, result FROM call_events WHERE lead_id = ? AND ignored = 0 AND source = 'dialer' "
+                "AND created_at >= ? "
                 "ORDER BY created_at DESC, id DESC LIMIT 1", (r["id"], start)).fetchone()
             item.update(kind="today", today_result=last["result"], event_id=last["id"],
                         sort=r["first_today"])
@@ -81,6 +85,8 @@ def _list(conn, start):
             new.append({**item, "kind": "new"})
         elif r["n_events"] == 1 and r["n_final"] == 0:
             retry.append({**item, "kind": "retry"})  # one miss before today: one more try
+        elif r["last_result"] == "call_later" and r["last_call"] < callback_before:
+            retry.append({**item, "kind": "callback"})  # they asked to be called later
     new.sort(key=lambda x: -(x["score"] or 0))
     retry.sort(key=lambda x: -(x["score"] or 0))
     done.sort(key=lambda x: x["sort"])
