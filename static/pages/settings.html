@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings - Navigara</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2">
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <main>
+    <div class="page-head"><h1>Settings</h1><div class="muted">Backups and how this dashboard is set up.</div></div>
+    <div class="stats" id="stats"></div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>Backup</h2>
+      <p class="muted">Downloads a copy of the whole database. A copy is also kept in the <b>data/backups</b> folder.</p>
+      <a class="btn primary" href="/api/backup">Back up now</a>
+    </div>
+    <div class="card">
+      <h2>This dashboard</h2>
+      <div class="kv" id="info"></div>
+      <p class="muted" style="margin-top:14px">Passwords, keys and your time zone live in the <b>.env</b> file in the project folder. They are never stored in the code or uploaded to GitHub.</p>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", async () => {
+        const o = await api("/api/overview");
+        const me = await api("/api/me");
+        document.getElementById("stats").innerHTML = [
+          ["Businesses", o.leads], ["Imports / scrapes", o.batches], ["Call results logged", o.call_events]
+        ].map(([l, v]) => `<div class="stat"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("");
+        document.getElementById("info").innerHTML = `
+          <div>Mode</div><div>${me.practice ? "Practice (made-up data, thrown away when closed)" : "Real"}</div>
+          <div>Login</div><div>${me.login_required ? "Password required" : "Open (no password set)"}</div>
+          <div>Time zone</div><div>${esc(me.timezone)}</div>
+          <div>Database file</div><div>${esc(o.database_file)}</div>`;
+      });
+    </script>
+  </main>
+</div>
+</body>
+</html>

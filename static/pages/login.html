@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in - Navigara</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2">
+<script src="/static/js/app.js"></script>
+<style>
+  .login { max-width: 360px; margin: 14vh auto; padding: 0 16px; }
+  .login form { display: flex; flex-direction: column; gap: 12px; }
+</style>
+</head>
+<body>
+<div class="login card">
+  <div class="brand">Navi<span>gara</span></div>
+  <form id="f">
+    <input type="password" id="pw" placeholder="Password" autofocus required>
+    <button class="btn primary">Log in</button>
+    <div id="err" style="color:var(--bad)"></div>
+  </form>
+</div>
+<script>
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/login", { method: "POST", body: { password: document.getElementById("pw").value } });
+    location.href = "/";
+  } catch (err) { document.getElementById("err").textContent = err.message; }
+});
+</script>
+</body>
+</html>
