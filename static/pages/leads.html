@@ -4,16 +4,202 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Leads - Navigara</title>
-<link rel="stylesheet" href="/static/css/style.css?v=2">
-<script src="/static/js/app.js"></script>
+<link rel="stylesheet" href="/static/css/style.css?v=4">
+<script src="/static/js/app.js?v=3"></script>
 </head>
 <body>
 <div class="layout">
   <aside id="sidebar"></aside>
   <main>
-    <div class="page-head"><h1>Leads</h1><div class="muted">Every business in the system, and whether it is worth your time.</div></div>
-    <div class="placeholder muted">This page is built in section 2. Coming soon.</div>
+    <div class="page-head with-actions">
+      <div><h1>Leads</h1><div class="muted">Every person in the system, and whether they are worth your time.</div></div>
+      <div class="toolbar">
+        <label class="btn primary">Upload CSV<input type="file" id="file" accept=".csv,text/csv" hidden></label>
+        <button class="btn" id="exportBtn">Export CSV</button>
+        <button class="btn" id="rescoreBtn" title="Use after changing scoring.toml">Re-score all</button>
+        <a class="btn" href="/static/lead-template.csv" download>CSV template</a>
+      </div>
+    </div>
+
+    <div id="importResult"></div>
+    <div class="stats" id="stats"></div>
+
+    <div class="toolbar">
+      <input class="grow" id="q" type="search" placeholder="Search name, company, title or phone">
+      <select id="status">
+        <option value="">All statuses</option>
+        <option value="ready">Ready to call</option>
+        <option value="low">Below cut-off</option>
+        <option value="skipped">Skipped</option>
+      </select>
+      <select id="grade">
+        <option value="">All grades</option><option>A</option><option>B</option><option>C</option><option>D</option>
+      </select>
+      <select id="result"><option value="">Any last result</option><option value="none">Never called</option></select>
+      <select id="batch"><option value="">All imports</option></select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Contact</th><th>Company</th><th>Phone</th><th>Score</th><th>Grade</th><th>Pitch</th>
+          <th>Last result</th><th>Last call</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody>
+      </table>
+    </div>
+    <p class="muted" id="more"></p>
   </main>
 </div>
+
+<script>
+let RESULTS = {};
+const $ = id => document.getElementById(id);
+const filters = ["q", "status", "grade", "result", "batch"];
+
+function query() {
+  const p = new URLSearchParams();
+  filters.forEach(f => { if ($(f).value) p.set(f, $(f).value); });
+  return p.toString();
+}
+
+function when(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " +
+         d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+async function loadSummary() {
+  const s = await api("/api/leads/summary");
+  $("stats").innerHTML = [
+    ["Ready to call", s.ready, `score ${s.ready_score}+`, "ready"],
+    ["Below cut-off", s.low, "scored, but low", "low"],
+    ["Skipped", s.skipped, "instant no", "skipped"],
+    ["Total", s.total, "", ""],
+  ].map(([l, v, sub, st]) => `<div class="stat" style="cursor:pointer" data-status="${st}">
+      <div class="label">${l}</div><div class="value">${v}</div><div class="sub">${sub}</div></div>`).join("");
+  document.querySelectorAll(".stat[data-status]").forEach(el =>
+    el.onclick = () => { $("status").value = el.dataset.status; loadLeads(); });
+}
+
+async function loadLeads() {
+  const data = await api("/api/leads?" + query());
+  $("rows").innerHTML = data.leads.length ? data.leads.map(l => `
+    <tr data-id="${l.id}">
+      <td><b>${esc(l.contact || "-")}</b><div class="sub">${esc(l.title || "")}</div></td>
+      <td>${esc(l.company)}</td>
+      <td>${l.phone ? `<button class="linkish copy" data-phone="${esc(l.phone_pretty)}" title="Click to copy">${esc(l.phone_pretty)}</button>
+          <div class="sub">${esc(l.phone_type || "")}</div>` : '<span class="muted">none</span>'}</td>
+      <td>${l.score ?? ""}</td>
+      <td class="${l.grade ? "" : "wrap"}">${l.grade ? `<span class="badge ${l.grade}">${l.grade}</span>` : `<span class="sub">${esc(l.skip_reason || "")}</span>`}</td>
+      <td>${l.pitch ? `<span class="tag ${l.pitch}">${l.pitch}</span>` : ""}</td>
+      <td>${esc(RESULTS[l.last_result] || "")}</td>
+      <td class="sub">${when(l.last_call)}</td>
+    </tr>`).join("") : `<tr><td colspan="8" class="muted">No leads here yet. Click <b>Upload CSV</b> to add some.</td></tr>`;
+  $("more").textContent = data.more ? "Showing the first 500. Use search or filters to narrow it down." : "";
+}
+
+async function loadFilters() {
+  RESULTS = await api("/api/results");
+  $("result").innerHTML += Object.entries(RESULTS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  const batches = await api("/api/batches");
+  $("batch").innerHTML += batches.map(b => `<option value="${b.id}">${esc(b.name)} (${when(b.created_at)})</option>`).join("");
+}
+
+async function openLead(id) {
+  const { lead: l, events } = await api("/api/leads/" + id);
+  const bg = document.createElement("div"); bg.className = "drawer-bg";
+  const d = document.createElement("div"); d.className = "drawer";
+  const close = () => { bg.remove(); d.remove(); };
+  bg.onclick = close;
+  d.innerHTML = `
+    <button class="btn" style="float:right" id="closeDrawer">Close</button>
+    <h2>${esc(l.contact_name || l.name)}</h2>
+    <div class="muted">${esc(l.title || "")}${l.title ? " at " : ""}${esc(l.name)}</div>
+    <section>
+      ${l.status === "skipped"
+        ? `<div class="notice">Skipped: <b>${esc(l.skip_reason)}</b></div>`
+        : `<h3>Score ${l.score} <span class="badge ${l.grade}">${l.grade}</span>
+             <span class="tag ${l.pitch}">${l.pitch} pitch</span></h3>
+           ${l.score_detail.map(p => `<div class="points"><span>${esc(p.label)}</span>
+             <b class="${p.points < 0 ? "neg" : ""}">${p.points > 0 ? "+" : ""}${p.points}</b></div>`).join("")}`}
+    </section>
+    <section>
+      <h3>Details</h3>
+      <div class="kv">
+        <div>Phone</div><div>${l.phone ? `<button class="linkish copy" data-phone="${esc(l.phone_pretty)}">${esc(l.phone_pretty)}</button> (${esc(l.phone_type || "?")})` : "none"}</div>
+        <div>Email</div><div>${esc(l.email || "")}</div>
+        <div>LinkedIn</div><div>${l.linkedin ? `<a href="${esc(l.linkedin)}" target="_blank" rel="noopener">profile</a>` : ""}</div>
+        <div>Industry</div><div>${esc(l.industry || "")}</div>
+        <div>Employees</div><div>${l.employees ?? ""}</div>
+        <div>Engineers</div><div>${l.engineers ?? "unknown"}</div>
+        <div>Location</div><div>${esc([l.city, l.state, l.country].filter(Boolean).join(", "))}</div>
+        <div>Import</div><div>${esc(l.batch_name || "")}</div>
+      </div>
+    </section>
+    <section>
+      <h3>Log a result (bookkeeping, not counted as a dial)</h3>
+      <div class="result-buttons">${Object.entries(RESULTS).map(([k, v]) =>
+        `<button class="btn" data-result="${k}">${esc(v)}</button>`).join("")}</div>
+    </section>
+    <section>
+      <h3>History</h3>
+      ${events.length ? events.map(e => `
+        <div class="event ${e.ignored ? "ignored" : ""}">
+          <span><b>${esc(RESULTS[e.result] || e.result)}</b>
+            <span class="sub">${when(e.created_at)} · ${e.source === "dialer" ? "dial" : "logged by hand"}</span></span>
+          <button class="linkish sub" data-ignore="${e.id}" data-to="${e.ignored ? 0 : 1}">
+            ${e.ignored ? "restore" : "mark as mistake"}</button>
+        </div>`).join("") : '<div class="muted">Never called.</div>'}
+    </section>`;
+  document.body.append(bg, d);
+  d.querySelector("#closeDrawer").onclick = close;
+  d.querySelectorAll("[data-result]").forEach(b => b.onclick = async () => {
+    await api(`/api/leads/${id}/result`, { method: "POST", body: { result: b.dataset.result } });
+    toast("Logged: " + RESULTS[b.dataset.result]); close(); openLead(id); loadLeads();
+  });
+  d.querySelectorAll("[data-ignore]").forEach(b => b.onclick = async () => {
+    await api(`/api/call-events/${b.dataset.ignore}/ignore`, { method: "POST", body: { ignored: b.dataset.to === "1" } });
+    close(); openLead(id); loadLeads();
+  });
+}
+
+document.addEventListener("click", e => {
+  const copy = e.target.closest(".copy");
+  if (copy) { e.stopPropagation(); copyText(copy.dataset.phone); return; }
+  const row = e.target.closest("tbody tr[data-id]");
+  if (row) openLead(row.dataset.id);
+});
+
+$("file").onchange = async () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  const form = new FormData(); form.append("file", f);
+  $("importResult").innerHTML = `<div class="notice">Importing ${esc(f.name)}...</div>`;
+  try {
+    const r = await api("/api/leads/import", { method: "POST", body: form });
+    $("importResult").innerHTML = `<div class="notice"><b>${esc(f.name)}</b>: ${r.rows} rows read,
+      ${r.added} added (${r.ready} ready to call, ${r.low} below cut-off, ${r.skipped} skipped),
+      ${r.duplicates} already in the system.</div>`;
+    $("batch").innerHTML = '<option value="">All imports</option>';
+    RESULTS = {}; $("result").innerHTML = '<option value="">Any last result</option><option value="none">Never called</option>';
+    await loadFilters(); refresh();
+  } catch (err) { $("importResult").innerHTML = `<div class="notice">Import failed: ${esc(err.message)}</div>`; }
+  $("file").value = "";
+};
+$("exportBtn").onclick = () => { location.href = "/api/leads/export?" + query(); };
+$("rescoreBtn").onclick = async () => {
+  try { const r = await api("/api/leads/rescore", { method: "POST" }); toast(`Re-scored ${r.rescored} leads`); refresh(); }
+  catch (err) { toast(err.message, 5000); }
+};
+
+let timer;
+$("q").oninput = () => { clearTimeout(timer); timer = setTimeout(loadLeads, 250); };
+["status", "grade", "result", "batch"].forEach(f => $(f).onchange = loadLeads);
+
+function refresh() { loadSummary(); loadLeads(); }
+document.addEventListener("DOMContentLoaded", async () => { await loadFilters(); refresh(); });
+</script>
 </body>
 </html>

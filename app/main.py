@@ -7,13 +7,13 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import practice
+from . import leads, practice
 from .auth import COOKIE, auth_middleware, password_ok, set_login_cookie
 from .config import BACKUP_DIR, DB_PATH, PASSWORD, PRACTICE, ROOT, TIMEZONE
 from .db import connect, get_db, init_db
 
 STATIC = ROOT / "static"
-PAGES = ["leads", "scraper", "dialer", "analytics", "scripts", "settings"]
+PAGES = ["leads", "dialer", "analytics", "scripts", "settings"]
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ async def lifespan(app):
 app = FastAPI(title="Navigara Dashboard", lifespan=lifespan, docs_url=None, redoc_url=None)
 app.middleware("http")(auth_middleware)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.include_router(leads.router)
 
 
 # ---------- pages ----------

@@ -1,7 +1,6 @@
 // Shared by every page: sidebar, practice banner, and small helpers.
 const NAV = [
   ["/leads", "Leads"],
-  ["/scraper", "Scraper"],
   ["/dialer", "Dialer"],
   ["/analytics", "Analytics"],
   ["/scripts", "Scripts"],

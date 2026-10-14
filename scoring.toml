@@ -1,0 +1,91 @@
+# =====================================================================
+# Lead scoring settings. Change any number or list here, then click
+# "Re-score all" on the Leads page. No restart needed.
+# Words are matched without caring about capital letters.
+# =====================================================================
+
+# A lead is "ready to call" at or above this score.
+ready_score = 45
+
+# Letter grades: the lowest score for each grade. Below C is D.
+[grades]
+A = 75
+B = 60
+C = 45
+
+# ---------------------------------------------------------------------
+# Instant no (skip, with the reason shown on the lead)
+# ---------------------------------------------------------------------
+[size]
+min_engineers = 100
+# When the file does not say how many engineers, use total employees instead.
+min_employees_if_engineers_unknown = 1000
+
+[country]
+# Leave a lead's country empty and it is allowed.
+allowed = ["united states", "us", "usa", "united states of america"]
+
+# ---------------------------------------------------------------------
+# Job titles. A title is accepted if it has a LEVEL word and an AREA word
+# (e.g. "VP" + "Engineering"), or is one of the exact c-level titles.
+# A title containing an "excluded" word is never accepted.
+# ---------------------------------------------------------------------
+[title]
+top_exact   = ["cto", "chief technology officer", "chief ai officer", "caio",
+               "chief artificial intelligence officer"]
+mid_exact   = ["cio", "chief information officer", "chief digital officer",
+               "chief data officer", "chief data and ai officer", "chief innovation officer"]
+top_levels  = ["vp", "head", "chief"]
+mid_levels  = ["director", "senior director"]
+areas       = ["engineering", "software", "technology", "ai", "artificial intelligence",
+               "machine learning", "ml", "platform", "developer", "developer productivity",
+               "developer experience", "data", "digital", "it", "information technology",
+               "innovation", "automation"]
+excluded    = ["sales", "marketing", "recruiting", "recruiter", "talent", "hr",
+               "human resources", "finance", "legal", "assistant", "intern", "student"]
+top_points  = 20
+mid_points  = 12
+
+# ---------------------------------------------------------------------
+# Points
+# ---------------------------------------------------------------------
+[industry]
+# Matched as parts of the industry name, e.g. "financ" matches "Financial Services".
+tech         = ["software", "internet", "information technology", "computer", "saas",
+                "it services", "cloud"]
+non_tech     = ["retail", "consumer", "financ", "bank", "insurance", "manufactur",
+                "industrial", "machinery", "health", "hospital", "pharma", "medical",
+                "logistic", "transport", "supply chain", "energy", "oil", "utilit",
+                "food", "beverage", "apparel", "fashion", "automotive", "chemical",
+                "construction", "real estate", "airline", "aviation", "hospitality",
+                "restaurant", "grocery", "wholesale", "cosmetic", "packag", "agricultur",
+                "mining", "media", "entertainment", "education", "government"]
+non_tech_points = 35
+tech_points     = 15
+unknown_points  = 20
+
+# Engineering team size. Each band: [from, up to, points].
+[engineers]
+bands = [[100, 2000, 25], [2000, 10000, 15], [10000, 100000000, 5]]
+
+# Used when engineers is unknown: [from employees, up to, points].
+[employees]
+bands = [[1000, 50000, 20], [50000, 100000000, 10]]
+
+[ai_signals]
+# Looked for in the company keywords, technologies, title and notes.
+words      = ["ai", "artificial intelligence", "generative ai", "genai", "gen ai",
+              "copilot", "github copilot", "openai", "chatgpt", "machine learning",
+              "llm", "llms", "anthropic", "claude", "gemini", "cursor"]
+per_word   = 5
+max_points = 15
+
+[phone]
+direct_points = 5      # direct line or mobile, not the head office switchboard
+
+[big_tech]
+# These get pitched constantly and may build it themselves: score is capped.
+names     = ["google", "alphabet", "adobe", "microsoft", "amazon", "aws", "meta",
+             "facebook", "apple", "salesforce", "oracle", "ibm", "nvidia", "netflix",
+             "uber", "airbnb"]
+max_score = 40

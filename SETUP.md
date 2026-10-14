@@ -44,3 +44,18 @@ password, time zone and (later) your Twilio keys. It is never uploaded to GitHub
 ## Backups
 
 Click **Back up database** in the sidebar. A copy downloads, and another is kept in `data/backups/`.
+
+## Adding leads from Apollo
+
+1. In Apollo, search **People**: job titles like CTO / VP Engineering / Head of AI, your target industries,
+   1,000+ employees, United States.
+2. Tick the people you want and click **Export → CSV**.
+3. In the dashboard, open **Leads**, click **Upload CSV** and pick the file.
+   People already in the system are recognised and not added twice.
+
+Making a list by hand (e.g. from LinkedIn)? Click **CSV template** on the Leads page, fill it in, upload it.
+
+## Changing how leads are scored
+
+Open `scoring.toml` in VS Code. Every number and word list is there with a note explaining it.
+Save the file, then click **Re-score all** on the Leads page.

@@ -1,4 +1,5 @@
 """SQLite database: one file in data/. Tables are created on start-up if missing."""
+import re
 import sqlite3
 
 from .config import DB_PATH
@@ -20,27 +21,31 @@ CREATE TABLE IF NOT EXISTS batches (
 CREATE TABLE IF NOT EXISTS leads (
     id            INTEGER PRIMARY KEY,
     batch_id      INTEGER REFERENCES batches(id),
-    place_id      TEXT UNIQUE,              -- Google's id for the business
-    name          TEXT NOT NULL,
+    source_id     TEXT,                     -- e.g. Apollo contact id
+    name          TEXT NOT NULL,            -- company name
+    contact_name  TEXT,
+    title         TEXT,
     phone         TEXT,                     -- +15125550123 form
-    category      TEXT,
-    address       TEXT,
+    phone_type    TEXT,                     -- direct / mobile / company / unknown
+    email         TEXT,
+    linkedin      TEXT,
+    industry      TEXT,
+    employees     INTEGER,
+    engineers     INTEGER,
     city          TEXT,
     state         TEXT,
+    country       TEXT,
     website       TEXT,
-    maps_url      TEXT,
-    rating        REAL,
-    review_count  INTEGER,
-    review_facts  TEXT,                     -- JSON the scraper read, kept so we can re-score
-    status        TEXT NOT NULL DEFAULT 'pending',  -- pending / ready / skipped / dropped
+    facts         TEXT,                     -- JSON of everything imported, kept so we can re-score
+    status        TEXT NOT NULL DEFAULT 'low',  -- ready / low (below cut-off) / skipped
     score         INTEGER,
     grade         TEXT,
     skip_reason   TEXT,
+    pitch         TEXT,                     -- ROI / Technical
+    score_detail  TEXT,                     -- JSON list of what earned the points
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS leads_phone ON leads(phone);
-CREATE INDEX IF NOT EXISTS leads_batch ON leads(batch_id);
 
 -- One row per call result. Never updated except to mark a mistake as ignored.
 CREATE TABLE IF NOT EXISTS call_events (
@@ -61,6 +66,10 @@ CREATE INDEX IF NOT EXISTS call_events_lead ON call_events(lead_id);
 CREATE INDEX IF NOT EXISTS call_events_time ON call_events(created_at);
 
 -- Small values you change from the dashboard (e.g. daily dial goal).
+CREATE INDEX IF NOT EXISTS leads_phone ON leads(phone);
+CREATE INDEX IF NOT EXISTS leads_batch ON leads(batch_id);
+CREATE UNIQUE INDEX IF NOT EXISTS leads_source ON leads(source_id) WHERE source_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -76,9 +85,22 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+def _add_missing_columns(conn) -> None:
+    """Older databases get new columns added; nothing is ever removed."""
+    for table, create in re.findall(r"CREATE TABLE IF NOT EXISTS (\w+) \((.*?)\n\);", SCHEMA, re.S):
+        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if not have:
+            continue  # table is new; CREATE TABLE makes it complete
+        for line in create.splitlines():
+            m = re.match(r"\s+(\w+)\s+(TEXT|INTEGER|REAL)", line)
+            if m and m.group(1) not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {m.group(1)} {m.group(2)}")
+
+
 def init_db() -> None:
     conn = connect()
     try:
+        _add_missing_columns(conn)  # before the indexes, which may use new columns
         conn.executescript(SCHEMA)
         conn.commit()
     finally:
