@@ -17,7 +17,7 @@ from . import config
 from .areacodes import distance, lead_timezone, location
 from .db import get_db, get_setting, set_setting
 from .results import ANSWERED, DIALER_RESULTS, RESULTS, RETRY_ONCE
-from .util import area_code, local_tz, pretty_phone, utc_now
+from .util import area_code, local_tz, normalize_phone, pretty_phone, utc_now
 
 router = APIRouter()
 
@@ -25,9 +25,10 @@ PRACTICE_NUMBERS = ["+14155550100", "+16505550100", "+14045550100"]
 
 
 def numbers() -> list[str]:
+    """Your caller numbers in +1XXXXXXXXXX form, however they were typed in .env."""
     if config.PRACTICE:
         return PRACTICE_NUMBERS
-    return config.TWILIO_NUMBERS
+    return [p for p in (normalize_phone(n) for n in config.TWILIO_NUMBERS) if p]
 
 
 def today_start_utc() -> str:
