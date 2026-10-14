@@ -29,3 +29,14 @@ def secret_key() -> bytes:
     if not path.exists():
         path.write_text(secrets.token_hex(32))
     return path.read_text().strip().encode()
+
+# ---- Twilio (calling). All must be set, or the Dialer works as a plain list. ----
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_API_KEY = os.environ.get("TWILIO_API_KEY", "").strip()
+TWILIO_API_SECRET = os.environ.get("TWILIO_API_SECRET", "").strip()
+TWILIO_TWIML_APP_SID = os.environ.get("TWILIO_TWIML_APP_SID", "").strip()
+# Shared with the small Twilio Function that places calls; proves a call request came from you.
+DIAL_SECRET = os.environ.get("DIAL_SECRET", "").strip()
+TWILIO_NUMBERS = [n.strip() for n in os.environ.get("TWILIO_NUMBERS", "").split(",") if n.strip()]
+TWILIO_ENABLED = all([TWILIO_ACCOUNT_SID, TWILIO_API_KEY, TWILIO_API_SECRET, TWILIO_TWIML_APP_SID,
+                      DIAL_SECRET, TWILIO_NUMBERS])

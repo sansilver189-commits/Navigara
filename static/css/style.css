@@ -15,6 +15,7 @@
   font-size: 16px;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
        line-height: 1.5; }
@@ -125,3 +126,38 @@ tbody tr:hover { background: var(--panel-2); }
 .notice { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--accent);
           border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
 td.wrap { white-space: normal; min-width: 160px; max-width: 260px; }
+
+/* ---- Dialer ---- */
+.goal-bar { height: 6px; background: var(--panel-2); border-radius: 99px; margin-top: 8px; overflow: hidden; }
+.goal-bar div { height: 100%; background: var(--good); }
+.stat input.goal { width: 70px; padding: 2px 6px; font-size: 1rem; }
+tr.current { background: #1d2a44 !important; box-shadow: inset 4px 0 0 var(--accent); }
+tr.done td { opacity: .6; }
+tr.done td:last-child, tr.done td:nth-last-child(2) { opacity: 1; }
+.kind { font-size: .75rem; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.kind.retry { color: var(--warn); border-color: #8a6a1e; }
+.btn.call { background: var(--good); border-color: var(--good); color: #062a1a; font-weight: 700; }
+.btn.small { padding: 5px 10px; font-size: .85rem; }
+select.result-pick { padding: 5px 8px; font-size: .9rem; }
+
+.call-panel { position: fixed; left: 220px; right: 0; bottom: 0; z-index: 300; background: #121722;
+              border-top: 2px solid var(--accent); box-shadow: 0 -10px 30px rgba(0,0,0,.45); padding: 16px 28px; }
+.call-panel .top { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; }
+.call-panel .who { font-size: 1.35rem; font-weight: 700; }
+.call-panel .timer { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.call-panel .status { font-weight: 600; }
+.call-panel .status.ringing { color: var(--warn); }
+.call-panel .status.live { color: var(--good); }
+.call-panel .status.ended { color: var(--bad); }
+.call-panel .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.call-panel .quick { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.call-panel .quick .btn { padding: 12px 16px; font-size: 1rem; font-weight: 600; }
+.call-panel .quick .btn.booked { background: var(--good); border-color: var(--good); color: #062a1a; }
+.btn.hangup { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; }
+.btn.on { background: var(--warn); border-color: var(--warn); color: #1a1300; }
+@media (max-width: 800px) {
+  .call-panel { left: 0; padding: 12px 14px; max-height: 60vh; overflow-y: auto; }
+  .call-panel .who { font-size: 1.1rem; }
+  .call-panel .timer { font-size: 1.5rem; }
+  .call-panel .quick .btn { padding: 10px 12px; font-size: .95rem; }
+}

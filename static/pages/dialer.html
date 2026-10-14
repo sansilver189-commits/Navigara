@@ -4,16 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dialer - Navigara</title>
-<link rel="stylesheet" href="/static/css/style.css?v=4">
-<script src="/static/js/app.js?v=3"></script>
+<link rel="stylesheet" href="/static/css/style.css?v=6">
+<script src="/static/js/app.js?v=5"></script>
 </head>
 <body>
 <div class="layout">
   <aside id="sidebar"></aside>
-  <main>
-    <div class="page-head"><h1>Dialer</h1><div class="muted">Today's calling list, and a phone in your browser.</div></div>
-    <div class="placeholder muted">This page is built in section 4. Coming soon.</div>
+  <main id="main">
+    <div class="page-head with-actions">
+      <div><h1>Dialer</h1><div class="muted" id="sub">Today's calling list.</div></div>
+      <div class="toolbar" id="dialControls" hidden>
+        <button class="btn call" id="startBtn">Start dialing</button>
+        <button class="btn" id="pauseBtn" hidden>Pause after this call</button>
+      </div>
+    </div>
+    <div id="notice"></div>
+    <div class="stats" id="stats"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Contact</th><th>Company</th><th>Pitch</th><th>Score</th><th>Phone</th><th></th><th>Result</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="8" class="muted">Loading...</td></tr></tbody>
+      </table>
+    </div>
   </main>
 </div>
+<div class="call-panel" id="panel" hidden></div>
+<script src="/static/vendor/twilio-voice-2.18.5.min.js"></script>
+<script src="/static/js/dialer.js?v=5"></script>
 </body>
 </html>
