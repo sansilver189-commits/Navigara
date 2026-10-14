@@ -1,64 +1,103 @@
-# Navigara cold-calling dashboard - getting started
+# Navigara cold-calling dashboard - your guide
 
-Everything runs on your own computer. Your data is one file: `data/navigara.db`.
+A private sales tool that runs on your own Mac. Your data never leaves your computer
+(except the calls themselves, which go through Twilio).
 
-## One-time setup
+**Contents:** Starting it · Daily routine · Backups · Where each setting lives ·
+When something goes wrong · Connecting Twilio · **Cold-calling rules (read this)**
 
-1. **Install Python** (free): https://www.python.org/downloads/
-   *Windows:* on the first installer screen, tick **"Add python.exe to PATH"**.
-2. **Install Git** (free): https://git-scm.com/downloads
-   *Mac:* it is usually already there; if a box pops up asking to install "command line developer tools", click Install.
-3. **Get the project** in VS Code: press `Ctrl+Shift+P` (Mac: `Cmd+Shift+P`), type `Git: Clone`, press Enter,
-   choose **Clone from GitHub**, sign in if asked, pick **Navigara**, and choose a folder (e.g. Documents).
-   Click **Open** when VS Code asks.
-4. **Switch to the dashboard branch**: in VS Code open the terminal (menu **Terminal → New Terminal**) and paste:
-   ```
-   git checkout claude/cold-calling-dashboard-f3k06x
-   ```
+---
 
 ## Starting it
 
-| What | Mac | Windows |
-|---|---|---|
-| Your real dashboard | double-click `start.command` | double-click `start.bat` |
-| Practice mode (fake leads, pretend calls) | double-click `practice.command` | double-click `practice.bat` |
-
-The first start takes a minute (it installs what it needs). Your browser then opens
-http://localhost:8000 (practice mode: http://localhost:8001). Keep the black window open while you use it;
-close it to stop.
-
-Or from the VS Code terminal: `python run.py` (Mac: `python3 run.py`), add `--practice` for practice mode.
-
-## Getting the latest version
-
-In the VS Code terminal:
+**First time only** - install Python from https://www.python.org/downloads/ and get the project into
+VS Code (`Cmd+Shift+P` → `Git: Clone` → Clone from GitHub → Navigara → Documents → Open). Then, in
+VS Code's terminal (*Terminal → New Terminal*):
 ```
-git pull
+git checkout claude/cold-calling-dashboard-f3k06x
 ```
 
-## Settings
+**Every time** - in VS Code's terminal, paste one of these:
 
-Copy `.env.example` to a new file named `.env` in the same folder and fill it in. That file holds your
-password, time zone and (later) your Twilio keys. It is never uploaded to GitHub.
+| What | Command |
+|---|---|
+| Your real dashboard | `./start.command` |
+| Practice mode (made-up people, pretend calls) | `./practice.command` |
+
+Your browser opens it (real: http://localhost:8000, practice: http://localhost:8001).
+Keep the terminal open while you use it. To stop: click the terminal and press `Ctrl + C`.
+
+**Getting the newest version** (after I change something): stop it, then `git pull`, then start again.
+
+---
+
+## Daily routine
+
+1. **Leads** → *Upload CSV* with your Apollo export. Check who is *Ready to call*.
+2. **Dialer** → put your headset on → *Start dialing*. Pick a result after every call -
+   that is the only thing that moves on to the next person.
+3. After a meeting happens, open that person on **Leads** and log *Showed* (and later *Signed*).
+4. **Analytics** once a week: best hours, best industries, whether a number has stopped getting answers.
+5. **Back up** (see below).
+
+---
 
 ## Backups
 
-Click **Back up database** in the sidebar. A copy downloads, and another is kept in `data/backups/`.
+Click **Back up database** at the bottom of the sidebar (or *Settings → Back up now*).
+A copy downloads, and another is kept in the `data/backups` folder. Once a week, copy the downloaded
+file somewhere safe (iCloud Drive, Google Drive, a USB stick).
 
-## Adding leads from Apollo
+**To restore:** stop the dashboard, rename the backup file to `navigara.db`, put it in the `data` folder
+(replacing the old one), start again.
 
-1. In Apollo, search **People**: job titles like CTO / VP Engineering / Head of AI, your target industries,
-   1,000+ employees, United States.
-2. Tick the people you want and click **Export → CSV**.
-3. In the dashboard, open **Leads**, click **Upload CSV** and pick the file.
-   People already in the system are recognised and not added twice.
+Everything lives in one file: `data/navigara.db`. It is **not** uploaded to GitHub (on purpose -
+it holds people's phone numbers).
 
-Making a list by hand (e.g. from LinkedIn)? Click **CSV template** on the Leads page, fill it in, upload it.
+---
 
-## Changing how leads are scored
+## Where each setting lives
 
-Open `scoring.toml` in VS Code. Every number and word list is there with a note explaining it.
-Save the file, then click **Re-score all** on the Leads page.
+| Setting | Where |
+|---|---|
+| Password, time zone, calling hours, "Call Later" days, Twilio keys | `.env` file in the project folder (make it with `cp .env.example .env`, then click it in VS Code's file list). Restart after changing. |
+| Scoring: points, cut-off score, industries, job titles, Big Tech list | `scoring.toml` - every line has a note. Save, then click *Re-score all* on Leads. No restart. |
+| Daily dial goal | Type it into the *goal* box on the Dialer. |
+| Scripts and objection answers | The **Scripts** page. |
+| Text size and high-contrast look for scripts | The *A- / A+* buttons and the look menu on the script. |
+
+**Never** paste the contents of `.env` into a chat, email or GitHub. It is excluded from git automatically.
+
+---
+
+## When something goes wrong
+
+**The dashboard won't start**
+- "python3: command not found" → install Python (link above), close and reopen VS Code.
+- "Address already in use" → it's already running in another terminal tab. Use that one, or close it.
+- Still stuck: copy the red error text from the terminal and send it to Claude.
+
+**A CSV upload fails or adds nobody**
+- Make sure it's a `.csv` (in Excel/Numbers: *Export → CSV*), not `.xlsx`.
+- "0 added, X already in the system" means everyone in the file is already there - that's working as intended.
+- Lots of *Skipped*? Click *Skipped* on Leads to see the reasons (no phone, too small, wrong title...).
+
+**A call fails**
+- No green *Call* buttons → Twilio isn't set up, or a value in `.env` is missing. Re-check steps 3-8 below, restart.
+- Says "too late/early" → it's outside 8am-8pm in that person's time zone. That's the safety rule working.
+- "Could not connect to Twilio" → a key in `.env` is wrong (often a space at the end), or your Twilio balance is $0.
+- Call rings but you hear nothing / they can't hear you → your browser blocked the microphone. Click the
+  lock icon left of the address bar → Microphone → Allow, reload. Use Chrome.
+- You hear "This call is not allowed" → `DIAL_SECRET` in `.env` and in the Twilio Function don't match exactly.
+  Fix, *Deploy All* again in Twilio, restart the dashboard.
+- Calls connect but nobody ever answers → your number may be flagged as spam. Check the *By phone number*
+  table on Analytics, finish Twilio step 9 (business registration), and rest that number for a few days.
+- Anything else → Twilio Console → *Monitor → Logs → Calls* shows each call and why it failed.
+
+**I set the wrong result** → on the Dialer just pick the right one (the old one is kept but ignored).
+On the Leads page, open the person → *History* → *mark as mistake*.
+
+---
 
 ## Connecting Twilio (real calls)
 
@@ -114,3 +153,54 @@ Use a headset.
 create your business profile (Navigara), then register your numbers for **SHAKEN/STIR** and
 **Voice Integrity**. This tells phone carriers you're a real business, so your calls are less
 likely to show as "Spam Likely". It takes a few days to approve.
+
+---
+
+## Cold-calling rules (read this)
+
+*This is a plain-English summary for US business-to-business calling, not legal advice. Before you scale
+up (more callers, thousands of calls a month, or calling outside the US), spend an hour with a lawyer who
+knows the TCPA. These rules change - the FCC updates them often.*
+
+### What the dashboard already does for you
+- **Calling hours:** it won't ring anyone outside **8am-8pm in their own time zone**
+  (federal rule for personal phones is 8am-9pm; some states are stricter, so 8pm is the safe line).
+- **No harassment by design:** a miss gets **one** more try the next day, then the person drops off.
+  *Not Interested* and *Do Not Call* are final - they never come back on the list.
+- **Do Not Call result:** if anyone says "don't call me again", pick **Do Not Call**. You are required to
+  honour it, and the dashboard will never show them again (and re-importing the same person is caught as a duplicate).
+- **A human on every call:** one call at a time, started by you, no recorded messages. That keeps it out of
+  "robocall" territory.
+- **Honest caller ID:** calls come from numbers you own and paid for. Local area codes are fine; faking
+  someone else's number is illegal.
+
+### What you must do yourself
+1. **Say who you are** at the start: your name and "from Navigara". Never pretend to be someone else or
+   imply you already have a relationship with them.
+2. **Mobile numbers are the risky ones.** Apollo often gives personal cell phones. A cell phone is usually treated as a
+   *personal* line even when it's an executive's, so:
+   - Prefer direct office lines when you have them (the dashboard already gives these extra points).
+   - Before calling a batch of mobile numbers, check them against the **National Do Not Call Registry**
+     (https://telemarketing.donotcall.gov - registering is free for up to 5 area codes). Mark anyone on
+     it as *Do Not Call*.
+3. **Never use recorded or AI voices** to call or to leave voicemails. Since 2024 the FCC treats AI-generated
+   voices as "artificial", which needs the person's written consent first - something Navigara, as an AI
+   company, should be extra careful about. Always speak yourself, and leave voicemails live.
+4. **Don't record calls** unless you tell the other person first. California (Bay Area!) and several other
+   states require *everyone* on the call to agree. The dashboard does not record.
+5. **Register your numbers** (Twilio step 9: Trust Hub business profile + SHAKEN/STIR). It's not optional in
+   practice: unregistered numbers get labelled "Spam Likely" and blocked.
+6. **Follow-up emails** ("Send Info") must follow CAN-SPAM: your real name and company, a working way to
+   unsubscribe, and Navigara's postal address in the footer. Honour unsubscribes within 10 business days.
+7. **Personal data:** the names and numbers you import are personal information. Keep the laptop locked,
+   don't share exports, and if someone (especially in California) asks you to delete their details, do it -
+   ask Claude to add a "forget this person" button when you need it.
+8. **Stay in your lane:** this setup is for calling businesses in the US only (the dashboard skips other
+   countries). Calling consumers, or other countries (UK, EU, Canada), comes with different, stricter rules.
+
+### Good habits that also make calls work better
+- Ask early: *"Is now a bad time?"* - and if it is, offer to call back.
+- If they say no twice, thank them and end the call.
+- Keep notes honest and keep your promises (if you said "I'll email you", do it that day).
+- Twilio's own rules (Acceptable Use Policy) also apply - breaking the rules above can get your account
+  and numbers shut down.

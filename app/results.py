@@ -8,6 +8,7 @@ RESULTS = {
     "send_info": "Send Info",
     "booked": "Booked",
     "wrong_number": "Wrong Number",
+    "do_not_call": "Do Not Call",  # they asked not to be called again: never shown again
     "showed": "Showed",      # logged later from the Leads page
     "signed": "Signed",      # logged later from the Leads page
 }
@@ -19,4 +20,4 @@ DIALER_RESULTS = [k for k in RESULTS if k not in ("showed", "signed")]
 RETRY_ONCE = {"no_answer", "left_voicemail", "gatekeeper"}
 
 # A human picked up (counts toward answer rate).
-ANSWERED = {"gatekeeper", "not_interested", "call_later", "send_info", "booked", "wrong_number"}
+ANSWERED = {"gatekeeper", "not_interested", "call_later", "send_info", "booked", "wrong_number", "do_not_call"}

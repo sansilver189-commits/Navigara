@@ -33,6 +33,9 @@ def secret_key() -> bytes:
 # A lead marked "Call Later" comes back on the Dialer this many days later.
 CALL_LATER_DAYS = max(1, int(os.environ.get("CALL_LATER_DAYS", "3")))
 
+# Only call between these hours in the LEAD's own time zone (24-hour clock). 8 to 20 = 8am-8pm.
+CALL_HOURS = tuple(int(x) for x in os.environ.get("CALL_HOURS", "8-20").split("-"))
+
 # ---- Twilio (calling). All must be set, or the Dialer works as a plain list. ----
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "").strip()
 TWILIO_API_KEY = os.environ.get("TWILIO_API_KEY", "").strip()

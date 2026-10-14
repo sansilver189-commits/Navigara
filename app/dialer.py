@@ -14,7 +14,7 @@ from datetime import datetime, time as dtime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 
 from . import config
-from .areacodes import distance, location
+from .areacodes import distance, lead_timezone, location
 from .db import get_db, get_setting, set_setting
 from .results import ANSWERED, DIALER_RESULTS, RESULTS, RETRY_ONCE
 from .util import area_code, local_tz, pretty_phone, utc_now
@@ -55,7 +55,7 @@ def _today_stats(conn, start):
 def _list(conn, start):
     rows = conn.execute(f"""
         WITH ev AS (SELECT * FROM call_events WHERE ignored = 0)
-        SELECT l.id, l.name, l.contact_name, l.title, l.phone, l.score, l.grade, l.pitch,
+        SELECT l.id, l.name, l.contact_name, l.title, l.phone, l.state, l.score, l.grade, l.pitch,
                (SELECT COUNT(*) FROM ev WHERE ev.lead_id = l.id) AS n_events,
                (SELECT COUNT(*) FROM ev WHERE ev.lead_id = l.id
                     AND ev.result NOT IN ({",".join("?" * len(RETRY_ONCE))})) AS n_final,
@@ -72,7 +72,8 @@ def _list(conn, start):
     for r in rows:
         item = {"id": r["id"], "company": r["name"], "contact": r["contact_name"], "title": r["title"],
                 "phone_pretty": pretty_phone(r["phone"]), "score": r["score"], "grade": r["grade"],
-                "pitch": r["pitch"], "today_result": None, "event_id": None}
+                "pitch": r["pitch"], "today_result": None, "event_id": None,
+                "tz": lead_timezone(r["state"], area_code(r["phone"]))}
         if r["first_today"]:
             last = conn.execute(
                 "SELECT id, result FROM call_events WHERE lead_id = ? AND ignored = 0 AND source = 'dialer' "
@@ -100,6 +101,7 @@ def state(conn=Depends(get_db)):
         "calling": "practice" if config.PRACTICE else ("twilio" if config.TWILIO_ENABLED else "off"),
         "numbers": [pretty_phone(n) for n in numbers()],
         "goal": int(get_setting(conn, "daily_goal", 60)),
+        "call_hours": list(config.CALL_HOURS),
         "stats": _today_stats(conn, start),
         "results": {k: RESULTS[k] for k in DIALER_RESULTS},
         "leads": _list(conn, start),
@@ -160,6 +162,15 @@ def pick_number(conn, lead_phone: str) -> str | None:
     return min(candidates, key=lambda n: last_used.get(n, ""))
 
 
+def _in_call_hours(lead) -> bool:
+    from zoneinfo import ZoneInfo
+    tz = lead_timezone(lead["state"], area_code(lead["phone"]))
+    if not tz:
+        return True  # unknown location (e.g. not a US number): we can't tell, so allow
+    hour = datetime.now(ZoneInfo(tz)).hour
+    return config.CALL_HOURS[0] <= hour < config.CALL_HOURS[1]
+
+
 def _b64(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
@@ -167,9 +178,12 @@ def _b64(data: bytes) -> str:
 @router.post("/api/dialer/ticket")
 def ticket(body: dict, conn=Depends(get_db)):
     """The browser asks to call a lead by id. Only the server knows which number that is."""
-    lead = conn.execute("SELECT id, phone FROM leads WHERE id = ?", (int(body.get("lead_id") or 0),)).fetchone()
+    lead = conn.execute("SELECT id, phone, state FROM leads WHERE id = ?", (int(body.get("lead_id") or 0),)).fetchone()
     if not lead or not lead["phone"]:
         raise HTTPException(404, "Lead has no phone number")
+    if not _in_call_hours(lead):
+        a, b = config.CALL_HOURS
+        raise HTTPException(400, f"It's outside calling hours where this lead is ({a}:00-{b}:00 their time)")
     from_number = pick_number(conn, lead["phone"])
     if config.PRACTICE:
         return {"ticket": "practice", "from": from_number, "from_pretty": pretty_phone(from_number)}

@@ -9,9 +9,11 @@ let device = null;     // Twilio phone in the browser
 let current = null;    // the call in progress
 let auto = false;      // auto-dial on?
 let timerId = null;
+let scriptOn = (() => { try { return localStorage.getItem("navigara.showScript") !== "0"; } catch { return true; } })();
 
 async function init() {
   S = await api("/api/dialer/state");
+  S.active = await api("/api/scripts/active");
   rows = S.leads;
   setupCalling();
   renderStats();
@@ -63,6 +65,20 @@ function fakeCall() {
   return call;
 }
 
+// ---------- calling hours (in the lead's own time zone) ----------
+
+function leadClock(r) {
+  if (!r.tz) return null;
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: r.tz, hour: "numeric", minute: "2-digit", hour12: true })
+    .formatToParts(new Date());
+  const hour24 = +new Intl.DateTimeFormat("en-US", { timeZone: r.tz, hour: "numeric", hourCycle: "h23" }).format(new Date());
+  return { text: parts.map(p => p.value).join(""), hour: hour24 };
+}
+function inHours(r) {
+  const c = leadClock(r);
+  return !c || (c.hour >= S.call_hours[0] && c.hour < S.call_hours[1]);
+}
+
 // ---------- rendering ----------
 
 function renderStats() {
@@ -92,6 +108,7 @@ function renderRows() {
     .map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(v)}</option>`).join("");
   $("rows").innerHTML = rows.map((r, i) => {
     const isCurrent = current && current.row.id === r.id;
+    const clock = leadClock(r), ok = inHours(r);
     const label = r.kind === "retry" ? '<span class="kind retry">2nd try</span>'
                 : r.kind === "callback" ? '<span class="kind retry">call back</span>' : "";
     return `<tr data-id="${r.id}" class="${isCurrent ? "current" : ""} ${r.today_result ? "done" : ""}">
@@ -100,8 +117,10 @@ function renderRows() {
       <td>${esc(r.company)}</td>
       <td>${r.pitch ? `<span class="tag ${r.pitch}">${r.pitch}</span>` : ""}</td>
       <td>${r.score ?? ""} ${r.grade ? `<span class="badge ${r.grade}">${r.grade}</span>` : ""}</td>
-      <td><button class="linkish copy" data-phone="${esc(r.phone_pretty)}">${esc(r.phone_pretty)}</button></td>
-      <td>${canCall && !current && !r.today_result ? `<button class="btn call small" data-call="${r.id}">Call</button>` : ""}</td>
+      <td><button class="linkish copy" data-phone="${esc(r.phone_pretty)}">${esc(r.phone_pretty)}</button>
+        ${clock ? `<div class="sub" style="${ok ? "" : "color:var(--warn)"}">${clock.text} their time</div>` : ""}</td>
+      <td>${canCall && !current && !r.today_result ? (ok ? `<button class="btn call small" data-call="${r.id}">Call</button>`
+          : `<span class="sub" title="Only call ${S.call_hours[0]}:00-${S.call_hours[1]}:00 their time">too late/early</span>`) : ""}</td>
       <td><select class="result-pick" data-result-for="${r.id}">${opts(r.today_result)}</select></td>
     </tr>`;
   }).join("");
@@ -118,6 +137,7 @@ function renderPanel() {
     p.hidden = true;
     $("main").style.paddingBottom = "";
     clearInterval(timerId);
+    renderOverlay();
     return;
   }
   const r = current.row;
@@ -137,6 +157,7 @@ function renderPanel() {
       </div>
       <div class="controls">
         <button class="btn ${current.muted ? "on" : ""}" id="muteBtn" ${current.status === "ended" ? "disabled" : ""}>${current.muted ? "Unmute" : "Mute"}</button>
+        ${S.active.script ? `<button class="btn ${scriptOn ? "on" : ""}" id="scriptBtn">Script ${scriptOn ? "on" : "off"}</button>` : ""}
         ${auto ? `<button class="btn" id="panelPause">Pause after this</button>` : ""}
         <button class="btn hangup" id="hangBtn" ${current.status === "ended" ? "disabled" : ""}>Hang up</button>
       </div>
@@ -147,10 +168,35 @@ function renderPanel() {
   $("muteBtn").onclick = () => { current.muted = !current.muted; current.call.mute(current.muted); renderPanel(); };
   $("hangBtn").onclick = () => current.call.disconnect();
   if ($("panelPause")) $("panelPause").onclick = pause;
+  if ($("scriptBtn")) $("scriptBtn").onclick = toggleScript;
   $("main").style.paddingBottom = (p.offsetHeight + 30) + "px";
+  renderOverlay();
   tick();
   clearInterval(timerId);
   timerId = setInterval(tick, 500);
+}
+
+// The script covers the lead list while a call is live, and goes away when the call ends.
+// It stops at the top edge of the call panel, so it never hides the panel.
+function renderOverlay() {
+  const o = $("scriptOverlay");
+  const show = current && current.status !== "ended" && scriptOn && S.active.script;
+  if (!show) { o.hidden = true; return; }
+  o.hidden = false;
+  o.style.bottom = $("panel").offsetHeight + "px";
+  o.innerHTML = `<div class="sv-head"><b>${esc(S.active.script.name)}</b><span id="svc"></span></div>
+    ${ScriptView.render(S.active.script, S.active.objections, current.row.company)}`;
+  const c = ScriptView.controls(renderOverlay);
+  const hide = document.createElement("button");
+  hide.className = "btn small"; hide.textContent = "Hide script"; hide.onclick = toggleScript;
+  c.append(hide);
+  $("svc").append(c);
+}
+
+function toggleScript() {
+  scriptOn = !scriptOn;
+  try { localStorage.setItem("navigara.showScript", scriptOn ? "1" : "0"); } catch {}
+  renderPanel();
 }
 
 function tick() {
@@ -208,6 +254,7 @@ async function setResult(row, result) {
     const end = current.endedAt || Date.now();
     Object.assign(body, {
       from_number: current.from, call_sid: current.sid,
+      script_id: S.active.script ? S.active.script.id : null,
       duration_sec: current.connectedAt ? Math.round((end - current.connectedAt) / 1000) : 0,
     });
   }
@@ -230,10 +277,13 @@ async function setResult(row, result) {
 
 function nextCall() {
   if (!auto || current) return;
-  const next = rows.find(r => !r.today_result);
+  const next = rows.find(r => !r.today_result && inHours(r));
   if (!next) {
     auto = false; updateControls();
-    toast("That's the end of today's list.", 4000);
+    const waiting = rows.filter(r => !r.today_result).length;
+    toast(waiting ? `Stopped: the ${waiting} lead(s) left are outside calling hours in their time zone.`
+                  : "That's the end of today's list.", 6000);
+    renderRows();
     return;
   }
   startCall(next);

@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS call_events (
 CREATE INDEX IF NOT EXISTS call_events_lead ON call_events(lead_id);
 CREATE INDEX IF NOT EXISTS call_events_time ON call_events(created_at);
 
+-- Call scripts, objection answers and text-message scripts.
+CREATE TABLE IF NOT EXISTS scripts (
+    id            INTEGER PRIMARY KEY,
+    kind          TEXT NOT NULL,             -- call / objection / sms
+    name          TEXT NOT NULL,
+    body          TEXT NOT NULL DEFAULT '',  -- formatted text (simple HTML)
+    in_use        INTEGER NOT NULL DEFAULT 0,  -- the one call script shown during calls
+    show_in_panel INTEGER NOT NULL DEFAULT 1,  -- objection answers: show under the script
+    archived      INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
+);
+
 -- Small values you change from the dashboard (e.g. daily dial goal).
 CREATE INDEX IF NOT EXISTS leads_phone ON leads(phone);
 CREATE INDEX IF NOT EXISTS leads_batch ON leads(batch_id);

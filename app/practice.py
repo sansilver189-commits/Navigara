@@ -94,6 +94,14 @@ def _seed_history(conn):
     ids = [r[0] for r in conn.execute(
         "SELECT l.id FROM leads l JOIN batches b ON b.id = l.batch_id "
         "WHERE b.name LIKE 'Practice call history%' AND l.status = 'ready'")]
+    # A second (made-up) script, so Analytics can compare two scripts.
+    first = conn.execute("SELECT id FROM scripts WHERE kind = 'call' ORDER BY id LIMIT 1").fetchone()
+    stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    second = conn.execute(
+        "INSERT INTO scripts(kind, name, body, created_at, updated_at) VALUES('call', ?, ?, ?, ?)",
+        ("Technical pitch (practice)", "<h2>Opener</h2><p>Hi, quick one about OpenTelemetry and AI at [Business].</p>",
+         stamp, stamp)).lastrowid
+    script_ids = [first[0], second] if first else [second]
     rng = random.Random(3)
     tz = local_tz()
     now = datetime.now(tz) - timedelta(days=1)
@@ -116,9 +124,9 @@ def _seed_history(conn):
             else:
                 result = rng.choice(["no_answer", "no_answer", "left_voicemail"])
             conn.execute(
-                "INSERT INTO call_events(lead_id, result, source, from_number, duration_sec, created_at) "
-                "VALUES(?, ?, 'dialer', ?, ?, ?)",
-                (lead_id, result, number, rng.randint(5, 240),
+                "INSERT INTO call_events(lead_id, result, source, from_number, duration_sec, script_id, created_at) "
+                "VALUES(?, ?, 'dialer', ?, ?, ?, ?)",
+                (lead_id, result, number, rng.randint(5, 240), rng.choice(script_ids),
                  when.astimezone(timezone.utc).isoformat(timespec="seconds")),
             )
             if result == "booked":

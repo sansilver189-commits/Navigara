@@ -16,7 +16,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: hidden; }
+html, body { margin: 0; background: var(--bg); color: var(--text); overflow-x: clip; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
        line-height: 1.5; }
 a { color: var(--accent); text-decoration: none; }
@@ -184,3 +184,53 @@ select.result-pick { padding: 5px 8px; font-size: .9rem; }
 .range .btn.active { border-color: var(--accent); color: var(--accent); }
 .bars-scroll { overflow-x: auto; }
 .bars-scroll > div { min-width: 420px; }
+
+/* ---- Scripts (also shown on the Dialer during calls) ---- */
+.script-view { border-radius: var(--radius); padding: 16px; line-height: 1.45; }
+.script-view.theme-dark { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+.script-view.theme-light { background: #ffffff; color: #111; }
+.script-view.theme-contrast { background: #fff9c4; color: #000; }
+.script-view.theme-light .muted, .script-view.theme-contrast .muted { color: #444; }
+.script-view h2 { font-size: 1.25em; margin: .4em 0 .25em; }
+.script-view h3 { font-size: 1.1em; margin: .4em 0 .2em; }
+.script-view p { margin: 0 0 .6em; }
+.script-view mark, .script-view span[style*="background"] { color: #000; border-radius: 3px; padding: 0 2px; }
+.script-view mark:not([style]) { background: #fde68a; }
+.sv-cols { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 24px; }
+.sv-col + .sv-col { border-left: 1px solid rgba(127,127,127,.35); padding-left: 24px; }
+.sv-objs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(127,127,127,.35); }
+.sv-obj { flex: 1 1 220px; max-width: 420px; font-size: .78em; border: 1px solid rgba(127,127,127,.45); border-radius: 8px; padding: 8px 10px; }
+.sv-obj-name { font-weight: 700; margin-bottom: 4px; }
+.sv-obj p { margin: 0 0 .35em; }
+.sv-controls { display: flex; gap: 6px; align-items: center; }
+.sv-controls select { padding: 5px 8px; font-size: .85rem; }
+@media (max-width: 800px) {
+  .sv-cols { grid-auto-flow: row; }
+  .sv-col + .sv-col { border-left: 0; padding-left: 0; border-top: 1px solid rgba(127,127,127,.35); padding-top: 10px; }
+}
+
+/* Scripts page */
+.scripts-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.script-list { display: flex; flex-direction: column; gap: 6px; }
+.script-item { text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+               padding: 10px 12px; cursor: pointer; color: var(--text); font: inherit; }
+.script-item.active { border-color: var(--accent); }
+.script-item .sub { display: block; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tabs .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.editor-bar { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0 6px; }
+.editor-bar .btn { padding: 5px 9px; font-size: .85rem; }
+.swatch { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); cursor: pointer; padding: 0; }
+.editor { min-height: 260px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px;
+          line-height: 1.45; overflow-wrap: anywhere; }
+.editor:focus { outline: 2px solid var(--accent); }
+.editor mark, .editor span[style*="background"] { color: #000; }
+.editor hr[data-split], .script-view hr[data-split] { border: 0; border-top: 3px dashed var(--accent); margin: 14px 0; }
+.in-use { color: var(--good); font-weight: 700; font-size: .8rem; }
+@media (max-width: 800px) { .scripts-layout { grid-template-columns: 1fr; } }
+
+/* Dialer: the script over the lead list during a call. Never covers the call panel. */
+.script-overlay { position: fixed; top: 0; left: 220px; right: 0; z-index: 250; overflow-y: auto;
+                  background: rgba(15,18,24,.97); padding: 16px 28px; }
+.script-overlay .sv-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+@media (max-width: 800px) { .script-overlay { left: 0; padding: 12px 14px; } }

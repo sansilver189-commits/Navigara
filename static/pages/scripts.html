@@ -4,16 +4,183 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Scripts - Navigara</title>
-<link rel="stylesheet" href="/static/css/style.css?v=7">
+<link rel="stylesheet" href="/static/css/style.css?v=9">
 <script src="/static/js/app.js?v=5"></script>
+<script src="/static/js/script-view.js?v=1"></script>
 </head>
 <body>
 <div class="layout">
   <aside id="sidebar"></aside>
   <main>
-    <div class="page-head"><h1>Scripts</h1><div class="muted">Your call script, on screen during a call.</div></div>
-    <div class="placeholder muted">This page is built in section 6. Coming soon.</div>
+    <div class="page-head"><h1>Scripts</h1>
+      <div class="muted">Your call script, objection answers and text messages. The script marked
+        <span class="in-use">IN USE</span> shows on the Dialer during calls.</div></div>
+
+    <div class="tabs" id="tabs">
+      <button class="btn" data-kind="call">Call scripts</button>
+      <button class="btn" data-kind="objection">Objection answers</button>
+      <button class="btn" data-kind="sms">Text messages</button>
+      <label class="muted" style="margin-left:auto; display:flex; gap:6px; align-items:center">
+        <input type="checkbox" id="showArchived"> Show archived</label>
+    </div>
+
+    <div class="scripts-layout">
+      <div>
+        <button class="btn primary" id="newBtn" style="width:100%; margin-bottom:10px">+ New</button>
+        <div class="script-list" id="list"></div>
+      </div>
+
+      <div id="editorWrap" hidden>
+        <div class="card">
+          <input id="name" placeholder="Name" style="width:100%; font-weight:600">
+          <div class="editor-bar">
+            <button class="btn" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button class="btn" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button class="btn" data-block="h2" title="Heading">Heading</button>
+            <button class="btn" data-block="h3" title="Small heading">Subheading</button>
+            <button class="btn" data-block="p" title="Normal text">Normal</button>
+            <button class="swatch" data-hl="#fde68a" title="Yellow highlight" style="background:#fde68a"></button>
+            <button class="swatch" data-hl="#bbf7d0" title="Green highlight" style="background:#bbf7d0"></button>
+            <button class="swatch" data-hl="#fbcfe8" title="Pink highlight" style="background:#fbcfe8"></button>
+            <button class="swatch" data-hl="#bfdbfe" title="Blue highlight" style="background:#bfdbfe"></button>
+            <button class="btn" data-cmd="removeFormat" title="Remove bold, italic and highlight from the selection">Clear</button>
+            <button class="btn" id="splitBtn" title="Start a new column here">Split here</button>
+            <button class="btn" id="bizBtn" title="Replaced by the company name during a call">[Business]</button>
+          </div>
+          <div class="editor" id="editor" contenteditable="true"></div>
+          <div class="toolbar" style="margin-top:12px">
+            <button class="btn primary" id="saveBtn">Save</button>
+            <button class="btn" id="useBtn" hidden>Use during calls</button>
+            <label class="muted" id="panelWrap" hidden style="display:flex; gap:6px; align-items:center">
+              <input type="checkbox" id="showInPanel"> Show under the call script</label>
+            <span style="flex:1"></span>
+            <button class="btn" id="archiveBtn">Archive</button>
+            <button class="btn danger" id="deleteBtn">Delete</button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="toolbar" style="justify-content:space-between">
+            <h2 style="margin:0">How it looks during a call</h2>
+            <div id="viewControls"></div>
+          </div>
+          <div id="preview"></div>
+        </div>
+      </div>
+      <div id="emptyMsg" class="placeholder muted" hidden>Pick a script on the left, or click <b>+ New</b>.</div>
+    </div>
   </main>
 </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let all = [], kind = "call", sel = null, dirty = false;
+const KIND_NAMES = { call: "call script", objection: "objection answer", sms: "text message" };
+
+async function load(keepId) {
+  all = await api("/api/scripts");
+  renderList();
+  const pick = all.find(s => s.id === keepId) || null;
+  pick ? select(pick) : showEditor(false);
+}
+
+function renderList() {
+  document.querySelectorAll("#tabs [data-kind]").forEach(b => b.classList.toggle("active", b.dataset.kind === kind));
+  const items = all.filter(s => s.kind === kind && ($("showArchived").checked || !s.archived));
+  $("list").innerHTML = items.length ? items.map(s => `
+    <button class="script-item ${sel && sel.id === s.id ? "active" : ""}" data-id="${s.id}">
+      ${esc(s.name)} ${s.in_use ? '<span class="in-use">IN USE</span>' : ""}
+      <span class="sub">${s.archived ? "archived" : s.kind === "objection" ? (s.show_in_panel ? "shown on calls" : "hidden on calls") : ""}</span>
+    </button>`).join("") : `<div class="muted">No ${KIND_NAMES[kind]}s yet.</div>`;
+}
+
+function showEditor(on) { $("editorWrap").hidden = !on; $("emptyMsg").hidden = on; }
+
+function select(s) {
+  if (dirty && !confirm("You have unsaved changes. Discard them?")) return;
+  sel = s; dirty = false;
+  $("name").value = s.name;
+  $("editor").innerHTML = ScriptView.clean(s.body);
+  $("useBtn").hidden = s.kind !== "call" || s.in_use || s.archived;
+  $("panelWrap").hidden = s.kind !== "objection";
+  $("showInPanel").checked = !!s.show_in_panel;
+  $("archiveBtn").textContent = s.archived ? "Restore" : "Archive";
+  $("splitBtn").hidden = s.kind !== "call";
+  showEditor(true);
+  renderList();
+  preview();
+}
+
+function preview() {
+  if (!sel) return;
+  const body = $("editor").innerHTML;
+  if (sel.kind === "call") {
+    const objs = all.filter(o => o.kind === "objection" && o.show_in_panel && !o.archived);
+    $("preview").innerHTML = ScriptView.render({ body }, objs, "Example Retail Co");
+  } else if (sel.kind === "objection") {
+    $("preview").innerHTML = ScriptView.render(null, [{ name: $("name").value, body }], "Example Retail Co");
+  } else {
+    $("preview").innerHTML = ScriptView.render({ body }, [], "Example Retail Co");
+  }
+}
+
+async function save() {
+  const s = await api(`/api/scripts/${sel.id}`, { method: "PUT", body: {
+    name: $("name").value, body: ScriptView.clean($("editor").innerHTML), show_in_panel: $("showInPanel").checked } });
+  dirty = false; toast("Saved");
+  await load(s.id);
+}
+
+// ---- editor buttons ----
+document.querySelectorAll("[data-cmd]").forEach(b => b.onmousedown = e => {
+  e.preventDefault(); document.execCommand(b.dataset.cmd); changed();
+});
+document.querySelectorAll("[data-block]").forEach(b => b.onmousedown = e => {
+  e.preventDefault(); document.execCommand("formatBlock", false, b.dataset.block); changed();
+});
+document.querySelectorAll("[data-hl]").forEach(b => b.onmousedown = e => {
+  e.preventDefault(); document.execCommand("styleWithCSS", false, true);
+  document.execCommand("hiliteColor", false, b.dataset.hl); changed();
+});
+$("splitBtn").onmousedown = e => { e.preventDefault(); document.execCommand("insertHTML", false, "<hr data-split><p><br></p>"); changed(); };
+$("bizBtn").onmousedown = e => { e.preventDefault(); document.execCommand("insertText", false, "[Business]"); changed(); };
+function changed() { dirty = true; preview(); }
+$("editor").oninput = changed;
+$("name").oninput = changed;
+$("showInPanel").onchange = changed;
+
+// ---- actions ----
+$("saveBtn").onclick = save;
+$("useBtn").onclick = async () => { await save(); await api(`/api/scripts/${sel.id}/use`, { method: "POST" }); toast("Now in use on the Dialer"); load(sel.id); };
+$("archiveBtn").onclick = async () => {
+  await api(`/api/scripts/${sel.id}/archive`, { method: "POST", body: { archived: !sel.archived } });
+  toast(sel.archived ? "Restored" : "Archived"); dirty = false; load(sel.archived ? sel.id : null);
+};
+$("deleteBtn").onclick = async () => {
+  if (!confirm(`Delete "${sel.name}" for good? (Archive keeps it but hides it.)`)) return;
+  await api(`/api/scripts/${sel.id}`, { method: "DELETE" }); dirty = false; sel = null; toast("Deleted"); load();
+};
+$("newBtn").onclick = async () => {
+  if (dirty && !confirm("You have unsaved changes. Discard them?")) return;
+  dirty = false;
+  const s = await api("/api/scripts", { method: "POST", body: { kind, name: "New " + KIND_NAMES[kind] } });
+  await load(s.id);
+  $("name").select();
+};
+document.querySelectorAll("#tabs [data-kind]").forEach(b => b.onclick = () => {
+  if (dirty && !confirm("You have unsaved changes. Discard them?")) return;
+  dirty = false; kind = b.dataset.kind; sel = null; renderList(); showEditor(false);
+});
+$("showArchived").onchange = renderList;
+$("list").onclick = e => { const b = e.target.closest("[data-id]"); if (b) select(all.find(s => s.id === +b.dataset.id)); };
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+document.addEventListener("DOMContentLoaded", async () => {
+  $("viewControls").append(ScriptView.controls(preview));
+  await load();
+  const first = all.find(s => s.kind === "call" && !s.archived);
+  if (first) select(first);
+});
+</script>
 </body>
 </html>
